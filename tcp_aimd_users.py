@@ -21,25 +21,12 @@ class TCP_Simulator:
         A = np.diag(self.update_beta()) + np.outer(self.update_alpha(), (np.ones(n) - self.update_beta())) / sum(self.update_alpha())
         return A
 
-    def update_congestion_window(self, A):
-        if np.any(self.congestion_state == 1):  # In fast recovery phase
-            self.window += 1  # Increase window by 1 for each ACK received
-            lost_packet_idx = np.argmax(self.congestion_state == 1)  # Identify the packet loss
-            self.window[lost_packet_idx] = self.ssthresh  # Set window to ssthresh
-            self.congestion_state[self.congestion_state == 1] = 0  # Exit fast recovery
-        else:  # In congestion avoidance or slow start phase
-            self.window = np.dot(A, self.window)  # AIMD: Increase window by 1 for each RTT
-            if np.any(self.window >= self.ssthresh):  # Enter fast recovery upon detecting packet loss
-                self.ssthresh = np.max(self.window)  # Set ssthresh to the maximum window size achieved
-                self.window = np.floor(self.ssthresh / 2)  # Reduce window to half of ssthresh
-                self.congestion_state[self.window < self.ssthresh] = 1  # Enter fast recovery
-
-    def simulate(self, max_iterations=50, convergence_threshold=1e-5):
-        A = self.construct_transition_matrix()
-
+    def update_congestion_window(self, max_iterations=50, convergence_threshold=1e-5):
         for i in range(max_iterations):
             prev_window = np.copy(self.window)
-            self.update_congestion_window(A)
+            A = self.construct_transition_matrix()
+            
+            self.window = np.dot(A, self.window)  # Update window using A * window
 
             # Calculate throughput for each user
             self.throughputs = self.window * self.update_alpha()
@@ -53,6 +40,9 @@ class TCP_Simulator:
 
         # Calculate fairness and efficiency metrics
         self.calculate_metrics()
+
+    def simulate(self, max_iterations=50, convergence_threshold=1e-5):
+        self.update_congestion_window(max_iterations, convergence_threshold)
 
     def calculate_metrics(self):
         print("Throughputs:", self.throughputs)
